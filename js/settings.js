@@ -16,6 +16,18 @@ function render() {
   info.appendChild(el('div', 'settings-stat', `${tpls} templates · ${sessions} sessions`));
   wrap.appendChild(info);
 
+  wrap.appendChild(el('div', 'h-section', 'Rest bell'));
+
+  const testBtn = el('button', 'btn btn-block', '🔔 Test bell');
+  testBtn.onclick = () => { window.Bell.test(); toast('Ringing'); };
+  wrap.appendChild(testBtn);
+
+  wrap.appendChild(toggleRow('Bell sound', null, 'bellEnabled', true));
+  wrap.appendChild(toggleRow(
+    'Ring when the app is closed',
+    'Pauses your music during rest',
+    'bgBellEnabled', true));
+
   wrap.appendChild(el('div', 'h-section', 'Backup'));
 
   const exportBtn = el('button', 'btn btn-primary btn-block', '⭳ Export all data (JSON)');
@@ -44,6 +56,28 @@ function render() {
   wrap.appendChild(wipe);
 
   scr.appendChild(wrap);
+}
+
+function toggleRow(label, sublabel, key, dflt) {
+  const row = el('div', 'toggle-row');
+  const text = el('div');
+  text.appendChild(el('div', 'toggle-label', label));
+  if (sublabel) text.appendChild(el('div', 'toggle-sub', sublabel));
+  row.appendChild(text);
+
+  const btn = el('button', 'toggle');
+  const paint = () => {
+    const on = window.Store.getSetting(key, dflt);
+    btn.classList.toggle('on', !!on);
+    btn.textContent = on ? 'ON' : 'OFF';
+  };
+  btn.onclick = () => {
+    window.Store.setSetting(key, !window.Store.getSetting(key, dflt));
+    paint();
+  };
+  paint();
+  row.appendChild(btn);
+  return row;
 }
 
 function doExport() {
