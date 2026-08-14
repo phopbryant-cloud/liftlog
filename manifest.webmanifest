@@ -1,0 +1,14 @@
+{
+  "name": "LiftLog",
+  "short_name": "LiftLog",
+  "description": "Personal workout tracker with paste-to-import.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0a12",
+  "theme_color": "#552583",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

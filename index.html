@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0c0a12" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LIFTLOG" />
+  <title>LIFTLOG</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">LIFT<span>LOG</span><small>Import · Track · Progress</small></div>
+  </header>
+
+  <main>
+    <section id="screen-templates" class="screen active"></section>
+    <section id="screen-import" class="screen"></section>
+    <section id="screen-preview" class="screen"></section>
+    <section id="screen-rest" class="screen"></section>
+    <section id="screen-session" class="screen"></section>
+    <section id="screen-history" class="screen"></section>
+    <section id="screen-settings" class="screen"></section>
+  </main>
+
+  <nav class="nav">
+    <a href="#" data-screen="templates" class="active"><span class="ico">▤</span>Templates</a>
+    <a href="#" data-screen="import"><span class="ico">＋</span>Import</a>
+    <a href="#" data-screen="history"><span class="ico">◷</span>History</a>
+    <a href="#" data-screen="settings"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <script src="./js/parser.js"></script>
+  <script src="./js/store.js"></script>
+  <script src="./js/session.js"></script>
+  <script src="./js/history.js"></script>
+  <script src="./js/settings.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#552583"/>
+  <!-- barbell in Laker gold -->
+  <g fill="#fdb927">
+    <rect x="96" y="236" width="320" height="40" rx="8"/>
+    <rect x="70" y="196" width="42" height="120" rx="14"/>
+    <rect x="400" y="196" width="42" height="120" rx="14"/>
+    <rect x="40" y="220" width="30" height="72" rx="12"/>
+    <rect x="442" y="220" width="30" height="72" rx="12"/>
+  </g>
+</svg>
