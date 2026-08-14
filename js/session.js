@@ -95,7 +95,7 @@ function buildEntries(template) {
     });
     return {
       exId: ex.id, name: ex.name,
-      note: window.Store.getNote(ex.name) || ex.cue || '',
+      note: window.Store.hasNote(ex.name) ? window.Store.getNote(ex.name) : (ex.cue || ''),
       supersetId: ex.supersetId || null, restSec: ex.restSec || 120,
       sets,
     };

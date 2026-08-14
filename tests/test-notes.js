@@ -48,7 +48,10 @@ check('round trip', Store.getNote('Incline press'), 'elbows tucked');
 check('name is normalized', Store.getNote('  INCLINE PRESS '), 'elbows tucked');
 Store.setNote('Incline press', '   ');
 check('blank text clears the note', Store.getNote('Incline press'), '');
-check('clearing removes the key', Object.keys(Store.load().notes), []);
+check('clearing leaves a tombstone key', Object.keys(Store.load().notes), ['incline press']);
+check('hasNote is true for a cleared (tombstoned) note', Store.hasNote('Incline press'), true);
+check('hasNote is false for an exercise never written to', Store.hasNote('Never touched'), false);
+check('hasNote normalizes the name like getNote', Store.hasNote('  INCLINE PRESS '), true);
 
 console.log('\nnotes — dated log');
 

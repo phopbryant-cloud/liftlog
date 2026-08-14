@@ -131,15 +131,25 @@ function getNote(name) {
   return n && n.text ? n.text : '';
 }
 
-// Empty/whitespace text deletes the key so getNote falls back to the
-// template cue seed rather than storing a meaningless ''.
+// Blank text still writes a tombstone ({ text: '', updatedAt }) instead of
+// deleting the key. The key's existence means "the user has an opinion
+// about this exercise"; deleting it on clear would make a deliberately
+// cleared note indistinguishable from one never written, and callers that
+// seed from the template cue on a missing note (buildEntries, and the
+// template-reseed path) would resurrect the stale cue the user just erased.
 function setNote(name, text) {
   const db = load();
   const key = normName(name);
   const t = (text || '').trim();
-  if (!t) delete db.notes[key];
-  else db.notes[key] = { text: t, updatedAt: Date.now() };
+  db.notes[key] = { text: t, updatedAt: Date.now() };
   save();
+}
+
+// Whether the user has ever saved (or cleared) a note for this exercise, as
+// opposed to never having touched it. Distinguishes the two cases getNote's
+// '' return value can't: a cleared note vs. one that was never set.
+function hasNote(name) {
+  return Object.prototype.hasOwnProperty.call(load().notes, normName(name));
 }
 
 // Reads a note off a session entry. Entries written before this feature only
@@ -200,7 +210,7 @@ if (typeof window !== 'undefined') {
     setLastRest, getLastRest,
     addSession, getSessions, completedSessions,
     historyForExercise, lastSetsForExercise, allTimeBestWeight,
-    getNote, setNote, notesForExercise, noteOfEntry,
+    getNote, setNote, hasNote, notesForExercise, noteOfEntry,
     setActive, getActive, clearActive,
     exportJSON, importJSON,
     STORAGE_KEY,
