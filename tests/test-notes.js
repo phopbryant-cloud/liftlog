@@ -92,5 +92,12 @@ reset({ sessions: [sess(1, 'Rear delt', '')] });
 check('empty note contributes no row', Store.notesForExercise('Rear delt'), []);
 check('unknown exercise returns empty', Store.notesForExercise('Never done'), []);
 
+console.log('\nsettings — generic accessors');
+reset({});
+check('unset key returns the default', Store.getSetting('bellEnabled', true), true);
+Store.setSetting('bellEnabled', false);
+check('false is stored, not treated as unset', Store.getSetting('bellEnabled', true), false);
+check('existing settings are untouched', Store.getSetting('lastRestSec', 0), 120);
+
 console.log(`\n${failures ? failures + ' FAILURE(S)' : 'ALL PASS'}\n`);
 process.exit(failures ? 1 : 0);

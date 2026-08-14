@@ -73,6 +73,17 @@ function getLastRest() {
   return load().settings.lastRestSec || 120;
 }
 
+// Generic settings access. Note the `undefined` check rather than a falsy
+// check, so a stored `false` is not mistaken for an unset key.
+function getSetting(key, dflt) {
+  const v = load().settings[key];
+  return v === undefined ? dflt : v;
+}
+function setSetting(key, val) {
+  load().settings[key] = val;
+  save();
+}
+
 // ---- Sessions & progression ----
 function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 function normName(n) { return (n || '').trim().toLowerCase(); }
@@ -207,7 +218,7 @@ if (typeof window !== 'undefined') {
   window.Store = {
     load, save,
     getTemplates, getTemplate, addTemplate, updateTemplate, deleteTemplate,
-    setLastRest, getLastRest,
+    setLastRest, getLastRest, getSetting, setSetting,
     addSession, getSessions, completedSessions,
     historyForExercise, lastSetsForExercise, allTimeBestWeight,
     getNote, setNote, hasNote, notesForExercise, noteOfEntry,
