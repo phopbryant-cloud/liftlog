@@ -141,6 +141,7 @@ function isActive() { return !!S; }
 
 // ================= RENDER =================
 function render() {
+  editingNote = null; // a full rebuild destroys any open editor by definition
   const scr = $('#screen-session');
   scr.innerHTML = '';
   if (!S) return;
@@ -211,12 +212,80 @@ function startElapsed() {
   elapsedTimer = setInterval(tick, 1000);
 }
 
+// ---- note block ----
+// editingNote holds the entry index currently in edit mode. It is transient UI
+// state, deliberately not persisted.
+let editingNote = null;
+
+function noteBlock(idx) {
+  const box = el('div', 'note-block');
+  box.dataset.noteIdx = String(idx);
+  fillNoteBlock(box, idx);
+  return box;
+}
+
+// Replaces ONLY this block, never the whole screen. A full render() on blur
+// would remove the DOM node under a pending tap and swallow the tap that
+// caused the blur (e.g. tapping ✓ straight out of the textarea).
+function refreshNoteBlock(idx) {
+  const box = document.querySelector('.note-block[data-note-idx="' + idx + '"]');
+  if (!box) return;
+  box.innerHTML = '';
+  fillNoteBlock(box, idx);
+}
+
+function fillNoteBlock(box, idx) {
+  const e = S.entries[idx];
+  const text = window.Store.noteOfEntry(e);
+
+  if (editingNote === idx) {
+    const ta = el('textarea', 'note-input');
+    ta.value = text;
+    ta.rows = 1;
+    ta.placeholder = 'Cues, form notes, what to fix next time…';
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    // Writes on every keystroke, same crash-safe path as the weight/reps
+    // inputs. Must NOT call render() — that destroys the textarea mid-word.
+    ta.oninput = () => {
+      e.note = ta.value;
+      persist();
+      grow();
+    };
+    // The standing note is shared across every template containing this
+    // exercise; it has no reason to be written mid-keystroke. Once per edit
+    // is enough, and it keeps oninput to a single serialization like the
+    // weight/reps inputs. e.note is still persisted on every keystroke, so a
+    // crash mid-edit loses nothing from this session.
+    ta.onblur = () => {
+      window.Store.setNote(e.name, ta.value);
+      editingNote = null;
+      refreshNoteBlock(idx);
+    };
+    box.appendChild(ta);
+    // Deferred because noteBlock() fills a DETACHED node — focus() and
+    // scrollHeight are both no-ops until the caller appends it.
+    setTimeout(() => { ta.focus(); grow(); }, 0);
+    return;
+  }
+
+  if (text) {
+    const line = el('div', 'ex-cue');
+    line.textContent = text;
+    line.appendChild(el('span', 'note-edit-ic', ' ✎'));
+    line.onclick = () => { editingNote = idx; refreshNoteBlock(idx); };
+    box.appendChild(line);
+  } else {
+    const add = el('button', 'note-add', '+ Note');
+    add.onclick = () => { editingNote = idx; refreshNoteBlock(idx); };
+    box.appendChild(add);
+  }
+}
+
 function exerciseBlock(idx) {
   const e = S.entries[idx];
   const card = el('div', 'ex-card');
   card.appendChild(exHeader(e, idx));
-  const noteText = window.Store.noteOfEntry(e);
-  if (noteText) card.appendChild(el('div', 'ex-cue', noteText));
+  card.appendChild(noteBlock(idx));
   const rows = el('div', 'set-rows');
   e.sets.forEach((st, si) => rows.appendChild(setRow(idx, si)));
   card.appendChild(rows);
@@ -243,6 +312,7 @@ function supersetBlock(groupIdxs) {
         nm.onclick = () => window.History.openExercise(e.name);
         h.appendChild(nm);
         round.appendChild(h);
+        round.appendChild(noteBlock(i));
       }
       if (r < e.sets.length) round.appendChild(setRow(i, r, e.name));
     });
