@@ -6,6 +6,7 @@ const SHELL = [
   './css/app.css',
   './js/parser.js',
   './js/store.js',
+  './js/bell.js',
   './js/session.js',
   './js/history.js',
   './js/settings.js',
