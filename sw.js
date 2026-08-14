@@ -1,5 +1,5 @@
 // sw.js — cache the app shell + Google Fonts so it works offline after first load.
-const CACHE = 'liftlog-v6';
+const CACHE = 'liftlog-v7';
 const SHELL = [
   './',
   './index.html',
@@ -43,7 +43,23 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE).then((c) => c.put(req, copy));
         }
         return res;
-      }).catch(() => hit);
+      }).catch(() => hit || offlineResponse(req));
     })
   );
 });
+
+// A cache miss plus a failed fetch used to resolve to `undefined`, which makes
+// the request fail SILENTLY — a <script> that never loads produces no console
+// error, so the module's global is simply missing and the feature it powers
+// looks like a dead button. Fail loudly instead. Navigations fall back to the
+// cached shell so the app still opens offline.
+function offlineResponse(req) {
+  if (req.mode === 'navigate') {
+    return caches.match('./index.html').then((shell) => shell || errorResponse(req));
+  }
+  return errorResponse(req);
+}
+function errorResponse(req) {
+  return new Response('LIFTLOG offline: not cached and unreachable — ' + req.url,
+    { status: 503, statusText: 'Offline and not cached', headers: { 'Content-Type': 'text/plain' } });
+}
