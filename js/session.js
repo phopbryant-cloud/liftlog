@@ -11,7 +11,6 @@ let elapsedTimer = null; // header clock
 // ---- timer (worker + fallback) ----
 let worker = null;
 let fallbackInterval = null;
-let audioCtx = null;
 
 function ensureWorker() {
   if (worker) return worker;
@@ -47,27 +46,12 @@ function stopTimerLoop() {
 }
 
 // ---- audio / notify / vibrate ----
-function initAudio() {
-  if (!audioCtx) {
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
-  }
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-}
-function chime() {
-  if (!audioCtx) return;
-  const now = audioCtx.currentTime;
-  [880, 1320, 880].forEach((f, i) => {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = f;
-    const t = now + i * 0.16;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(t); o.stop(t + 0.16);
-  });
-}
+// Audio lives in bell.js. initAudio() is kept as the name every call site
+// already uses; it must run inside a user gesture, which all its callers are.
+function initAudio() { window.Bell.init(); }
+
+function bellEnabled() { return window.Store.getSetting('bellEnabled', true); }
+function bgBellEnabled() { return window.Store.getSetting('bgBellEnabled', true); }
 function notify(body) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try { new Notification('Rest complete 💪', { body, icon: './icons/icon.svg', tag: 'liftlog-rest', renotify: true }); } catch (e) {}
@@ -451,6 +435,7 @@ function maybeStartRest(entryIdx, setIdx) {
 }
 
 function startRest(sec, name) {
+  window.Bell.cancel(); // clears any stale scheduled bell + its fired flag
   S.rest = { endAt: Date.now() + sec * 1000, entryName: name, total: sec };
   persist();
   startTimerLoop(S.rest.endAt);
@@ -460,7 +445,11 @@ function startRest(sec, name) {
 
 function onRestDone() {
   stopTimerLoop();
-  chime(); vibrate([300, 120, 300]); notify(S && S.rest ? `${S.rest.entryName} — back to it.` : 'Back to it.');
+  // If the app was backgrounded, the scheduled media bell already rang — do
+  // not ring a second time on return.
+  if (bellEnabled() && !window.Bell.didFireScheduled()) window.Bell.ring();
+  window.Bell.cancel();
+  vibrate([300, 120, 300]); notify(S && S.rest ? `${S.rest.entryName} — back to it.` : 'Back to it.');
   if (S) { S.rest = null; persist(); }
   const bar = document.getElementById('timer-bar');
   if (bar) { bar.classList.add('flash'); setTimeout(() => hideTimerBar(), 900); }
@@ -477,7 +466,7 @@ function timerBar() {
   const plus = el('button', 'btn btn-sm', '+15');
   minus.onclick = () => adjustRest(-15);
   plus.onclick = () => adjustRest(15);
-  skip.onclick = () => { stopTimerLoop(); if (S) { S.rest = null; persist(); } hideTimerBar(); };
+  skip.onclick = () => { stopTimerLoop(); window.Bell.cancel(); if (S) { S.rest = null; persist(); } hideTimerBar(); };
   controls.append(minus, skip, plus);
   bar.append(label, time, controls);
   if (!(S && S.rest && S.rest.endAt && S.rest.endAt > Date.now())) bar.classList.add('hidden');
@@ -505,6 +494,7 @@ function updateTimerDisplay(remainingMs) {
 }
 function adjustRest(delta) {
   if (!S || !S.rest) return;
+  window.Bell.cancel(); // ±15 is only reachable in the foreground; defensive
   S.rest.endAt += delta * 1000;
   S.rest.total = Math.max(15, S.rest.total + delta);
   if (S.rest.endAt - Date.now() <= 0) { onRestDone(); return; }
@@ -652,13 +642,27 @@ function attachLongPress(node, fn) {
   node.addEventListener('mouseleave', cancel);
 }
 
-// Recompute on return to foreground (worker may have been throttled while locked).
+// Leaving the app mid-rest is the only case where the page cannot ring at zero
+// itself, so that is the moment the scheduled media bell is armed.
+function onHidden() {
+  if (!S || !S.rest || !S.rest.endAt) return;
+  if (S.rest.endAt - Date.now() <= 0) return;
+  if (!bellEnabled() || !bgBellEnabled()) return;
+  window.Bell.scheduleAt(S.rest.endAt);
+}
+
+// Recompute on return to foreground (worker may have been throttled while
+// locked) and hand the audio session back so the user's music can resume.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !S || !S.rest) return;
+  if (document.visibilityState === 'hidden') { onHidden(); return; }
+  if (!S || !S.rest) return;
   const remaining = S.rest.endAt - Date.now();
-  if (remaining <= 0) onRestDone();
-  else { updateTimerDisplay(remaining); startTimerLoop(S.rest.endAt); }
+  if (remaining <= 0) { onRestDone(); return; }
+  window.Bell.cancel();
+  updateTimerDisplay(remaining);
+  startTimerLoop(S.rest.endAt);
 });
+document.addEventListener('pagehide', onHidden);
 
 window.Session = { start, resume, isActive };
 
