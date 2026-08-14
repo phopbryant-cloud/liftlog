@@ -30,6 +30,8 @@ let unlocked = false;
 let armed = false;        // a scheduled background bell is pending
 let scheduledFired = false;
 let silentUrl = null;
+let scheduleGen = 0;       // bumped on every scheduleAt call; guards against a stale play() rejection
+let scheduledEndAt = 0;    // endAt of the currently-armed schedule, for de-duping repeat calls
 
 function strike(oc, at, level) {
   PARTIALS.forEach((p) => {
@@ -136,7 +138,7 @@ function ensureAudioEl() {
   audioEl.setAttribute('playsinline', '');
   audioEl.preload = 'auto';
   audioEl.addEventListener('ended', () => {
-    if (armed) { scheduledFired = true; armed = false; }
+    if (armed) { scheduledFired = true; armed = false; scheduledEndAt = 0; }
     release();
   });
   document.body.appendChild(audioEl);
@@ -214,17 +216,30 @@ function ring() {
 // the OS media pipeline carry it to completion with the screen off.
 function scheduleAt(endAt) {
   if (!audioEl || !buffer) return false;
+  // visibilitychange and pagehide can BOTH fire for a single backgrounding.
+  // Re-arming for the same rest would restart the audio and churn the blob for
+  // no reason, so treat it as a no-op.
+  if (armed && scheduledEndAt === endAt) return true;
   const lead = Math.max(0, (endAt - Date.now()) / 1000);
   release();
   scheduledFired = false;
+  const gen = ++scheduleGen;
   try {
     blobUrl = URL.createObjectURL(new Blob([wavBytes(buffer, lead)], { type: 'audio/wav' }));
     audioEl.src = blobUrl;
     setSession('playback');
     setMetadata();
     armed = true;
+    scheduledEndAt = endAt;
     const p = audioEl.play();
-    if (p && p.catch) p.catch(() => { armed = false; setSession('auto'); });
+    if (p && p.catch) p.catch(() => {
+      // A newer scheduleAt already took over — reassigning src rejects the
+      // previous play() promise, and this stale rejection must not clear the
+      // newer call's armed flag.
+      if (gen !== scheduleGen) return;
+      armed = false;
+      setSession('auto');
+    });
     return true;
   } catch (e) {
     armed = false;
@@ -238,6 +253,7 @@ function scheduleAt(endAt) {
 function cancel() {
   armed = false;
   scheduledFired = false;
+  scheduledEndAt = 0;
   if (audioEl) { try { audioEl.pause(); } catch (e) {} }
   release();
   setSession('auto');
