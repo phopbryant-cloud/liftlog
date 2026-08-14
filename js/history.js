@@ -90,6 +90,50 @@ function prCountFor(s) {
   return count;
 }
 
+// Dated note log for the sheet. The standing note is pinned first, even when
+// it has never appeared in a completed session (e.g. seeded from a template).
+function notesSection(name) {
+  const box = el('div', 'note-log');
+  box.appendChild(el('div', 'note-log-head', 'Notes'));
+
+  const current = (window.Store.getNote(name) || '').trim();
+  const rows = window.Store.notesForExercise(name);
+
+  if (!current && !rows.length) {
+    box.appendChild(el('div', 'summary-note', 'No notes yet. Add one from a workout.'));
+    return box;
+  }
+
+  const newestMatchesCurrent = !!(current && rows[0] && rows[0].text === current);
+
+  if (current) {
+    const r = el('div', 'note-log-row');
+    // Same guard as the dated rows below: count counts collapsed entries, not
+    // sessions, so a duplicate entry within one session must not read as two
+    // workouts.
+    const loggedRuns = newestMatchesCurrent && rows[0].count > 1 && rows[0].since !== rows[0].date;
+    const label = 'Current' + (loggedRuns ? ' · logged ' + rows[0].count + '×' : '');
+    r.appendChild(el('div', 'note-log-date note-log-current', label));
+    r.appendChild(el('div', 'note-log-text', current));
+    box.appendChild(r);
+  }
+
+  rows.forEach((n, i) => {
+    if (i === 0 && newestMatchesCurrent) return; // already shown as Current
+    const r = el('div', 'note-log-row');
+    // `count` counts collapsed entries, not sessions, so the same exercise
+    // logged twice in ONE session yields count 2 with since === date. Guard
+    // against rendering the nonsense "Jul 1 · unchanged since Jul 1".
+    const spansSessions = n.count > 1 && n.since !== n.date;
+    const label = fmtDate(n.date) + (spansSessions ? ' · unchanged since ' + fmtDate(n.since) : '');
+    r.appendChild(el('div', 'note-log-date', label));
+    r.appendChild(el('div', 'note-log-text', n.text));
+    box.appendChild(r);
+  });
+
+  return box;
+}
+
 // ================= EXERCISE PROGRESSION SHEET =================
 function openExercise(name) {
   const hist = window.Store.historyForExercise(name); // newest first
@@ -107,12 +151,15 @@ function openExercise(name) {
   sheet.appendChild(head);
 
   if (!hist.length) {
+    sheet.appendChild(notesSection(name));
     sheet.appendChild(el('div', 'summary-note', 'No logged history yet. Do this exercise in a workout and it will appear here.'));
   } else {
     const best = window.Store.allTimeBestWeight(name);
     const bestBadge = el('div', 'best-badge');
     bestBadge.innerHTML = `<span class="best-label">All-time best</span><span class="best-val">${best} lb</span>`;
     sheet.appendChild(bestBadge);
+
+    sheet.appendChild(notesSection(name));
 
     // Chart (chronological)
     const chrono = hist.slice().reverse();

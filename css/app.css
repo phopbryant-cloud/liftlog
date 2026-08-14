@@ -424,6 +424,23 @@ textarea.paste:focus { outline: none; border-color: var(--volt-dim); }
   cursor: pointer;
 }
 .note-prev:active { color: var(--gold); border-left-color: var(--gold); }
+.note-log { margin: 14px 0 4px; }
+.note-log-head {
+  font-family: var(--font-display); text-transform: uppercase;
+  font-size: 13px; letter-spacing: 0.08em;
+  color: var(--text-dim); margin-bottom: 8px;
+}
+.note-log-row {
+  border-left: 2px solid var(--line);
+  padding: 0 0 12px 10px; margin-bottom: 2px;
+}
+.note-log-date {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.05em; color: var(--text-faint);
+  margin-bottom: 3px;
+}
+.note-log-current { color: var(--gold); }
+.note-log-text { font-size: 14px; line-height: 1.45; color: var(--text-dim); font-style: italic; }
 .ex-name-static { flex: 1; font-weight: 700; font-size: 18px; color: var(--text);
   border-bottom: 1px dashed transparent; }
 .ex-name-static:active { color: var(--gold); }
