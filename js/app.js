@@ -289,6 +289,17 @@ function renderRest() {
   renderRows();
 }
 
+// A template cue is only a seed: it fills in a standing note that does not
+// exist yet. Re-importing the same workout text must never clobber a note the
+// user has refined over weeks — nor resurrect one they deliberately cleared,
+// which is why this tests key existence via hasNote rather than truthiness.
+function seedNotesFromExercises(exercises) {
+  exercises.forEach((ex) => {
+    const cue = (ex.cue || '').trim();
+    if (cue && !window.Store.hasNote(ex.name)) window.Store.setNote(ex.name, cue);
+  });
+}
+
 function saveTemplate() {
   const tpl = {
     id: uid('tpl'),
@@ -304,6 +315,7 @@ function saveTemplate() {
     })),
   };
   window.Store.addTemplate(tpl);
+  seedNotesFromExercises(tpl.exercises);
   draft = null;
   renderTemplates();
   show('templates');
@@ -389,6 +401,7 @@ saveTemplate = function () {
       restSec: ex.restSec || 120, supersetId: ex.supersetId || null,
     }));
     window.Store.updateTemplate(tpl);
+    seedNotesFromExercises(tpl.exercises);
     _editingId = null; draft = null;
     renderTemplates(); show('templates'); toast('Template updated');
     return;
