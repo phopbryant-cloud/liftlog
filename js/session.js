@@ -217,6 +217,18 @@ function startElapsed() {
 // state, deliberately not persisted.
 let editingNote = null;
 
+// Newest logged note that differs from what is on screen. Returns null when
+// the note has not changed, so an unchanged note shows no redundant line.
+function previousNote(name, current) {
+  const cur = (current || '').trim();
+  const rows = window.Store.notesForExercise(name);
+  return rows.find((r) => r.text !== cur) || null;
+}
+
+function fmtNoteDate(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function noteBlock(idx) {
   const box = el('div', 'note-block');
   box.dataset.noteIdx = String(idx);
@@ -278,6 +290,15 @@ function fillNoteBlock(box, idx) {
     const add = el('button', 'note-add', '+ Note');
     add.onclick = () => { editingNote = idx; refreshNoteBlock(idx); };
     box.appendChild(add);
+  }
+
+  const prev = previousNote(e.name, text);
+  if (prev) {
+    const p = el('div', 'note-prev');
+    p.textContent = 'Last time · ' + fmtNoteDate(prev.date) + ' — ' + prev.text;
+    p.title = prev.text;
+    p.onclick = () => window.History.openExercise(e.name);
+    box.appendChild(p);
   }
 }
 

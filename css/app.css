@@ -414,6 +414,16 @@ textarea.paste:focus { outline: none; border-color: var(--volt-dim); }
 }
 .note-input::placeholder { color: var(--text-faint); font-style: normal; }
 .note-input:focus { outline: none; border-color: var(--volt); }
+.note-prev {
+  margin-top: 6px;
+  font-size: 12px; line-height: 1.4;
+  color: var(--text-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-left: 2px solid var(--line);
+  padding: 8px 0 8px 8px;
+  cursor: pointer;
+}
+.note-prev:active { color: var(--gold); border-left-color: var(--gold); }
 .ex-name-static { flex: 1; font-weight: 700; font-size: 18px; color: var(--text);
   border-bottom: 1px dashed transparent; }
 .ex-name-static:active { color: var(--gold); }
