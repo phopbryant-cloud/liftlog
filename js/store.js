@@ -142,6 +142,40 @@ function setNote(name, text) {
   save();
 }
 
+// Reads a note off a session entry. Entries written before this feature only
+// have `cue`, so both history and the session render go through here. An
+// explicitly cleared note ('') stays cleared rather than falling back to a
+// stale legacy cue.
+function noteOfEntry(e) {
+  if (e.note != null) return e.note;
+  return e.cue || '';
+}
+
+// Dated note log, newest first. Consecutive sessions with identical text
+// collapse into one row: { text, date (newest), since (oldest), count }.
+// Relies on completedSessions() returning newest-first — if that sort ever
+// flips, date and since silently swap meaning.
+function notesForExercise(name) {
+  const key = normName(name);
+  const rows = [];
+  completedSessions().forEach((s) => {
+    (s.entries || []).forEach((e) => {
+      if (normName(e.name) !== key) return;
+      const text = noteOfEntry(e).trim();
+      if (!text) return;
+      const date = s.finishedAt || s.startedAt;
+      const last = rows[rows.length - 1];
+      if (last && last.text === text) {
+        last.since = Math.min(last.since, date);
+        last.count++;
+      } else {
+        rows.push({ text, date, since: date, count: 1 });
+      }
+    });
+  });
+  return rows;
+}
+
 // ---- Active (in-progress) session persistence ----
 function setActive(sess) { load().active = sess; save(); }
 function getActive() { return load().active || null; }
@@ -166,7 +200,7 @@ if (typeof window !== 'undefined') {
     setLastRest, getLastRest,
     addSession, getSessions, completedSessions,
     historyForExercise, lastSetsForExercise, allTimeBestWeight,
-    getNote, setNote,
+    getNote, setNote, notesForExercise, noteOfEntry,
     setActive, getActive, clearActive,
     exportJSON, importJSON,
     STORAGE_KEY,
