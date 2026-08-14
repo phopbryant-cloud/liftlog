@@ -623,3 +623,20 @@ textarea.paste:focus { outline: none; border-color: var(--volt-dim); }
   letter-spacing: 0.06em; color: var(--text-faint);
 }
 .toggle.on { background: var(--purple-btn); border-color: var(--volt); color: #fff; }
+
+/* Route back to an in-progress workout from any other screen. Sits just above
+   the nav, below the timer bar's z-index so it never covers rest controls. */
+.resume-bar {
+  position: fixed; left: 10px; right: 10px; z-index: 35;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  min-height: var(--tap);
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 14px;
+  border: 1px solid var(--volt);
+  border-radius: 12px;
+  background: var(--purple-btn);
+  color: #fff;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.resume-bar:active { background: var(--purple-deep); }

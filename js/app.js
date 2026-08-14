@@ -51,7 +51,26 @@ function toast(msg) {
 function show(screen) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${screen}`));
   document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.screen === screen));
+  updateResumeBar(screen);
   window.scrollTo(0, 0);
+}
+
+// The bottom nav has no session tab, so tapping Settings or History mid-workout
+// used to strand the user — the only way back was to close and reopen the app.
+// This floats a one-tap route back above the nav on every screen except the
+// session itself.
+function updateResumeBar(screen) {
+  const active = window.Store.getActive();
+  const wanted = !!(active && active.entries && screen !== 'session');
+  let bar = document.getElementById('resume-bar');
+  if (!wanted) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = el('button', 'resume-bar');
+    bar.id = 'resume-bar';
+    bar.onclick = () => { window.Session.reopen(); };
+    document.body.appendChild(bar);
+  }
+  bar.textContent = '● ' + (active.name || 'Workout') + ' in progress — tap to return';
 }
 
 // ================= IMPORT =================

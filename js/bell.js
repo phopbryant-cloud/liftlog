@@ -185,18 +185,34 @@ function setMetadata() {
 
 // ---- public API ----
 // Idempotent. Must be called from a user gesture; every call site already is.
+// Deliberately does NOT create or unlock the media element — see
+// prepareBackground(). A running AudioContext alone already claims an audio
+// session on iOS, which is why the session type is pinned to 'ambient' here.
 function init() {
+  // 'ambient' mixes with other apps' audio rather than interrupting it, so the
+  // in-app bell rings OVER the user's music instead of killing it. Without this
+  // iOS resolves 'auto' to a playback-style session and stops their music every
+  // time the AudioContext starts. Trade-off: ambient audio is silenced by the
+  // physical mute switch.
+  setSession('ambient');
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (AC) { try { ctx = new AC(); } catch (e) { ctx = null; } }
   }
   if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
   renderBell();
+}
+
+// Creating and unlocking the media element is what makes the locked-screen bell
+// possible — and is ALSO what interrupts other audio, since a media element
+// claims a playback session even for 0.05s of silence. So it happens only when
+// the user has actually opted into the background bell. Must run in a gesture.
+function prepareBackground() {
   ensureAudioEl();
   unlock();
 }
 
-// Foreground ring. No media element involved, so other apps' audio is untouched.
+// Foreground ring, through the ambient session so other apps' audio is untouched.
 function ring() {
   if (!ctx) return;
   if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
@@ -238,12 +254,12 @@ function scheduleAt(endAt) {
       // newer call's armed flag.
       if (gen !== scheduleGen) return;
       armed = false;
-      setSession('auto');
+      setSession('ambient');
     });
     return true;
   } catch (e) {
     armed = false;
-    setSession('auto');
+    setSession('ambient');
     return false;
   }
 }
@@ -256,13 +272,13 @@ function cancel() {
   scheduledEndAt = 0;
   if (audioEl) { try { audioEl.pause(); } catch (e) {} }
   release();
-  setSession('auto');
+  setSession('ambient');
 }
 
 function didFireScheduled() { return scheduledFired; }
 
 function test() { init(); renderBell().then(ring); }
 
-window.Bell = { init, ring, scheduleAt, cancel, didFireScheduled, test, wavBytes, renderBell };
+window.Bell = { init, prepareBackground, ring, scheduleAt, cancel, didFireScheduled, test, wavBytes, renderBell };
 
 })();

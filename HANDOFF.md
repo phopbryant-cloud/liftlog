@@ -217,6 +217,11 @@ hammer curls @3 / side laterals [2 cable + 2 dumbbell]. ✓
   warm-ups excluded), total volume, duration, set count → summary overlay.
 - **Crash-safe**: `active` session persisted on every change; boot auto-resumes
   it (`app.js` boot → `Session.resume`).
+- **Resume bar**: the bottom nav has no session tab, so navigating to Settings or
+  History mid-workout used to strand the user — the only way back was to close
+  and reopen the app. `app.js` `updateResumeBar()` (called from `show()`) floats
+  a one-tap `Session.reopen()` button above the nav on every screen except the
+  session itself.
 - **Tap any exercise name anywhere** (templates, session, history) →
   `History.openExercise(name)` progression sheet: all-time best, notes, top-set
   SVG line chart (needs 2+ sessions), per-session log with best-set highlight +
@@ -243,8 +248,16 @@ hammer curls @3 / side laterals [2 cable + 2 dumbbell]. ✓
     block. `oninput` does a single `persist()`; the standing note is written once
     on blur, not per keystroke.
 - **Rest bell** (`bell.js`), replaces the old oscillator beep.
-  - **Foreground:** rings via WebAudio with no media element, so the user's music
-    is untouched. This is the common case.
+  - **Foreground:** rings via WebAudio through the **`ambient`** audio session,
+    which mixes with other apps instead of interrupting them. `Bell.init()` pins
+    `navigator.audioSession.type = 'ambient'` for exactly this reason — leaving
+    it at `'auto'` made iOS stop the user's music every time the AudioContext
+    started. Trade-off: ambient audio is silenced by the physical mute switch.
+  - **`init()` does NOT create the media element.** Merely creating and
+    unlocking it (0.05s of silence) claims a playback session and kills other
+    audio. That work lives in `Bell.prepareBackground()`, which `session.js`
+    calls only when `bgBellEnabled()`. With the background bell off, no `<audio>`
+    element is ever created — verified in a browser.
   - **Backgrounded/locked mid-rest:** `visibilitychange`→hidden and `pagehide`
     both call `onHidden`, which encodes `[silence for the remaining rest + bell]`
     to a WAV and plays it through a media element. This claims the iOS

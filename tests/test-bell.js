@@ -142,7 +142,12 @@ async function runReentrancyTests() {
   console.log('\nbell — scheduleAt reentrancy (visibilitychange + pagehide double-fire)');
 
   await Bell.renderBell();
-  Bell.init(); // creates the persistent audio element (ensureAudioEl) and unlocks
+  Bell.init();
+  // init() deliberately does NOT touch the media element — creating and
+  // unlocking it claims an audio session and kills the user's music, so it is
+  // opt-in behind the background-bell setting. The scheduled locked-screen bell
+  // is exactly what needs it, hence prepareBackground() here.
+  Bell.prepareBackground(); // ensureAudioEl + autoplay unlock
 
   // --- case 1: duplicate scheduleAt for the SAME endAt — layer 2 (no-op) ---
   const urlsBefore = createObjectURLCalls;

@@ -48,7 +48,13 @@ function stopTimerLoop() {
 // ---- audio / notify / vibrate ----
 // Audio lives in bell.js. initAudio() is kept as the name every call site
 // already uses; it must run inside a user gesture, which all its callers are.
-function initAudio() { window.Bell.init(); }
+function initAudio() {
+  window.Bell.init();
+  // The media element is only needed to ring from a locked screen, and merely
+  // creating + unlocking it interrupts the user's music. Skip it entirely when
+  // the background bell is off.
+  if (bgBellEnabled()) window.Bell.prepareBackground();
+}
 
 function bellEnabled() { return window.Store.getSetting('bellEnabled', true); }
 // Defaults OFF. Ringing from a locked screen requires claiming the iOS
@@ -669,6 +675,17 @@ document.addEventListener('visibilitychange', () => {
 });
 document.addEventListener('pagehide', onHidden);
 
-window.Session = { start, resume, isActive };
+// Return to an in-progress workout after navigating away (Settings, History…).
+// The nav has no session tab, so without this the only route back was to close
+// and reopen the app. Safe to call repeatedly: startTimerLoop() stops any prior
+// loop first, and `active` is the same object S already points at.
+function reopen() {
+  const active = window.Store.getActive();
+  if (!active || !active.entries) return false;
+  resume(active);
+  return true;
+}
+
+window.Session = { start, resume, reopen, isActive };
 
 })();
