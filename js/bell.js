@@ -23,6 +23,13 @@ const PARTIALS = [
 
 let buffer = null;        // rendered bell, cached after the first render
 let rendering = null;     // in-flight render promise
+let ctx = null;           // live AudioContext for the foreground ring
+let audioEl = null;       // persistent media element for the background ring
+let blobUrl = null;
+let unlocked = false;
+let armed = false;        // a scheduled background bell is pending
+let scheduledFired = false;
+let silentUrl = null;
 
 function strike(oc, at, level) {
   PARTIALS.forEach((p) => {
@@ -66,9 +73,24 @@ function renderBell() {
   strike(oc, 0, 1.0);
   strike(oc, 0.35, 0.85);
   rendering = oc.startRendering()
-    .then((b) => { buffer = b; rendering = null; return b; })
+    .then((b) => { buffer = normalize(b, 0.89); rendering = null; return buffer; })
     .catch(() => { rendering = null; return null; });
   return rendering;
+}
+
+// Summed partials plus the mallet transient overshoot unity badly (measured
+// ~1.96 peak), which hard-clips on both the WebAudio path and in the 16-bit
+// WAV. Normalize once, to just under full scale: as loud as a gym needs
+// without distorting, and self-correcting if the partials are ever retuned.
+function normalize(b, target) {
+  const d = b.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+  if (peak > 0) {
+    const g = target / peak;
+    for (let i = 0; i < d.length; i++) d[i] *= g;
+  }
+  return b;
 }
 
 // 16-bit mono PCM WAV. `bellBuffer` may be null for pure silence.
@@ -107,6 +129,124 @@ function wavBytes(bellBuffer, leadSeconds) {
   return bytes;
 }
 
-window.Bell = { wavBytes, renderBell };
+// ---- media element (background path) ----
+function ensureAudioEl() {
+  if (audioEl || typeof document === 'undefined' || !document.body) return audioEl;
+  audioEl = document.createElement('audio');
+  audioEl.setAttribute('playsinline', '');
+  audioEl.preload = 'auto';
+  audioEl.addEventListener('ended', () => {
+    if (armed) { scheduledFired = true; armed = false; }
+    release();
+  });
+  document.body.appendChild(audioEl);
+  return audioEl;
+}
+
+function silentSrc() {
+  if (!silentUrl) silentUrl = URL.createObjectURL(new Blob([wavBytes(null, 0.05)], { type: 'audio/wav' }));
+  return silentUrl;
+}
+
+// Autoplay unlock: a media element that has played once inside a user gesture
+// may be played again later without one, which is what lets the background
+// bell start from the visibilitychange handler. Silent and instantly paused.
+function unlock() {
+  if (unlocked || !audioEl) return;
+  try {
+    audioEl.src = silentSrc();
+    const p = audioEl.play();
+    if (p && p.then) p.then(() => { audioEl.pause(); unlocked = true; }).catch(() => {});
+    else { audioEl.pause(); unlocked = true; }
+  } catch (e) {}
+}
+
+function release() {
+  if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch (e) {} blobUrl = null; }
+}
+
+// 'playback' survives backgrounding and the ringer switch but interrupts other
+// audio, so it is claimed only while a background bell is actually pending.
+function setSession(type) {
+  if (typeof navigator === 'undefined' || !navigator.audioSession) return;
+  try { navigator.audioSession.type = type; } catch (e) {}
+}
+
+function setMetadata() {
+  if (typeof navigator === 'undefined' || !navigator.mediaSession || !window.MediaMetadata) return;
+  try {
+    navigator.mediaSession.metadata = new window.MediaMetadata({
+      title: 'Rest timer', artist: 'LIFTLOG',
+    });
+  } catch (e) {}
+}
+
+// ---- public API ----
+// Idempotent. Must be called from a user gesture; every call site already is.
+function init() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) { try { ctx = new AC(); } catch (e) { ctx = null; } }
+  }
+  if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+  renderBell();
+  ensureAudioEl();
+  unlock();
+}
+
+// Foreground ring. No media element involved, so other apps' audio is untouched.
+function ring() {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+  renderBell().then((b) => {
+    if (!b || !ctx) return;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(ctx.destination);
+      src.start();
+    } catch (e) {}
+  });
+}
+
+// Background ring. Called from visibilitychange while JS is still briefly
+// alive: encode the remaining rest as silence, followed by the bell, and let
+// the OS media pipeline carry it to completion with the screen off.
+function scheduleAt(endAt) {
+  if (!audioEl || !buffer) return false;
+  const lead = Math.max(0, (endAt - Date.now()) / 1000);
+  release();
+  scheduledFired = false;
+  try {
+    blobUrl = URL.createObjectURL(new Blob([wavBytes(buffer, lead)], { type: 'audio/wav' }));
+    audioEl.src = blobUrl;
+    setSession('playback');
+    setMetadata();
+    armed = true;
+    const p = audioEl.play();
+    if (p && p.catch) p.catch(() => { armed = false; setSession('auto'); });
+    return true;
+  } catch (e) {
+    armed = false;
+    setSession('auto');
+    return false;
+  }
+}
+
+// Stops a pending background bell and gives the audio session back, so the
+// user's music can resume.
+function cancel() {
+  armed = false;
+  scheduledFired = false;
+  if (audioEl) { try { audioEl.pause(); } catch (e) {} }
+  release();
+  setSession('auto');
+}
+
+function didFireScheduled() { return scheduledFired; }
+
+function test() { init(); renderBell().then(ring); }
+
+window.Bell = { init, ring, scheduleAt, cancel, didFireScheduled, test, wavBytes, renderBell };
 
 })();
