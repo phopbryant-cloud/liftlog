@@ -7,6 +7,13 @@ raw text.
 Owner: spratlin@rehabceos.com. Built 2026-08-14. Status: **fully functional,
 verified end-to-end.** All originally-requested features are implemented.
 
+**Update 2026-08-14 (same day):** per-exercise notes are now editable during a
+live workout, persist week over week, and show previous weeks' notes inline and
+in the exercise sheet. The rest-timer beep is now a synthesized boxing bell that
+also rings when the app is backgrounded or the phone is locked. See §6 for the
+behaviors and §8 for what is and is not verified — **the locked-screen bell still
+needs a real-iPhone test.**
+
 ---
 
 ## 1. How to run
@@ -35,11 +42,14 @@ NOTE: headless screenshots lay out at ~500px CSS width regardless of
 capture artifact, not a layout bug. Screenshot at `--window-size=520,...` to see
 the true layout. `scrollWidth <= innerWidth` = no real overflow.
 
-### Node logic tests (in scratchpad, reusable)
-- `test-parser.js` — parser against the Push-day example.
-- `test-store.js` — prefill / PR / history math against real session shapes.
-Both stub `window`/`localStorage` and `require()` the module. Run with `node`.
-`parser.js` and `store.js` have a `module.exports` guard for this.
+### Node logic tests (in `tests/`, committed)
+```bash
+node tests/test-notes.js   # 21 checks — notes storage, dated log, settings
+node tests/test-bell.js    # 22 checks — WAV encoder, double-schedule race
+```
+Both stub `window`/`localStorage` and `require()` the module the way the browser
+loads it. Earlier `test-parser.js` / `test-store.js` lived only in the session
+scratchpad and are gone — that is why these are committed.
 
 ---
 
@@ -91,8 +101,9 @@ runtime. `node --check` does NOT catch cross-file collisions; only a real browse
 load does. Keep new files IIFE-wrapped.
 
 ### Script load order (index.html, bottom of body)
-`parser.js → store.js → session.js → history.js → settings.js → app.js`
-app.js is last and owns boot (`DOMContentLoaded`).
+`parser.js → store.js → bell.js → session.js → history.js → settings.js → app.js`
+app.js is last and owns boot (`DOMContentLoaded`). `bell.js` must precede
+`session.js`, which calls it.
 
 ### Files
 | File | Role |
@@ -102,6 +113,7 @@ app.js is last and owns boot (`DOMContentLoaded`).
 | `js/parser.js` | `window.WorkoutParser` — forgiving text→workout parser. |
 | `js/store.js` | `window.Store` — single versioned localStorage key + all data queries. |
 | `js/app.js` | Import/preview/rest-setup flow, template list, nav, boot. `window.App`. |
+| `js/bell.js` | `window.Bell` — boxing-bell synthesis, foreground ring, WAV encode + background scheduling. |
 | `js/session.js` | `window.Session` — active workout engine, rest timer, finish summary. |
 | `js/history.js` | `window.History` — history list + per-exercise progression sheet + SVG chart. |
 | `js/settings.js` | `window.Settings` — export/import/erase. |
@@ -125,7 +137,8 @@ exercise-history sheet) are appended to `<body>`, not screens.
   templates: [ Template ],
   sessions:  [ Session ],   // completed workouts (newest unshifted to front)
   active:    Session|null,  // in-progress workout, persisted every change (crash-safe resume)
-  settings:  { units: 'lbs', lastRestSec: 120 }
+  notes:     { "<normalized exercise name>": { text, updatedAt } },  // standing notes
+  settings:  { units: 'lbs', lastRestSec: 120, bellEnabled: true, bgBellEnabled: true }
 }
 ```
 
@@ -143,7 +156,7 @@ Template = {
 Session = {
   id, templateId, name, startedAt, finishedAt|null,
   entries: [{
-    exId, name, cue, supersetId, restSec,
+    exId, name, note, supersetId, restSec,   // `cue` on pre-notes entries only
     sets: [{ label|null, weight, reps, done, warmup, skipped, prefilled }]  // weight/reps are strings
   }],
   rest: { endAt, entryName, total }|null   // live rest timer target (ms epoch)
@@ -205,8 +218,53 @@ hammer curls @3 / side laterals [2 cable + 2 dumbbell]. ✓
 - **Crash-safe**: `active` session persisted on every change; boot auto-resumes
   it (`app.js` boot → `Session.resume`).
 - **Tap any exercise name anywhere** (templates, session, history) →
-  `History.openExercise(name)` progression sheet: all-time best, top-set SVG line
-  chart (needs 2+ sessions), per-session log with best-set highlight + PR badges.
+  `History.openExercise(name)` progression sheet: all-time best, notes, top-set
+  SVG line chart (needs 2+ sessions), per-session log with best-set highlight +
+  PR badges.
+- **Notes** (per exercise, editable mid-workout). Keyed by *normalized exercise
+  name* in `db.notes`, so one note is shared by every template containing that
+  exercise, and it survives deleting a template. Read entries through
+  `Store.noteOfEntry(entry)` — never `entry.cue` directly — since entries
+  persisted before this feature only have `cue`.
+  - A template `cue` only **seeds** a note that does not exist yet. Seeding
+    checks `Store.hasNote()` (key existence), NOT truthiness. Clearing a note
+    stores a **tombstone** (`text: ''`) rather than deleting the key, so a note
+    you deliberately delete is never resurrected from a stale template cue on
+    re-import or on the next workout. This is why `hasNote` exists.
+  - The dated log (`Store.notesForExercise`) is **derived** from completed
+    sessions, not stored twice. Consecutive sessions with identical text collapse
+    into one row; `count` counts collapsed *entries*, not sessions, so any UI
+    rendering "unchanged since" must guard `since !== date` (the same exercise
+    can appear twice in one session via ad-hoc re-add).
+  - **Never call `render()` from the note textarea.** From `oninput` it destroys
+    the textarea and drops focus mid-word; from `onblur` it removes the node
+    under a pending tap and swallows the tap that caused the blur, silently
+    failing to log a set. Use `refreshNoteBlock(idx)`, which replaces only that
+    block. `oninput` does a single `persist()`; the standing note is written once
+    on blur, not per keystroke.
+- **Rest bell** (`bell.js`), replaces the old oscillator beep.
+  - **Foreground:** rings via WebAudio with no media element, so the user's music
+    is untouched. This is the common case.
+  - **Backgrounded/locked mid-rest:** `visibilitychange`→hidden and `pagehide`
+    both call `onHidden`, which encodes `[silence for the remaining rest + bell]`
+    to a WAV and plays it through a media element. This claims the iOS
+    *playback* audio session — the only way to ring from a locked screen, and it
+    interrupts the user's music for that rest, which is why `bgBellEnabled` is a
+    toggle. On return, `Bell.cancel()` releases the session.
+  - iOS gives web audio either *ambient* (mixes, dies when backgrounded) or
+    *playback* (survives backgrounding and the ringer switch, interrupts others).
+    There is no mix-and-continue mode and no local notification scheduling, so
+    claiming playback only at the moment of backgrounding is the whole design.
+  - `Bell.didFireScheduled()` prevents a double bell on return, and is read
+    **before** `Bell.cancel()` resets it. `scheduleAt` is reentrancy-safe: both
+    listeners can fire for one backgrounding, and without the generation token a
+    stale `play()` rejection would clear a newer call's `armed` flag and defeat
+    that guard.
+  - The rendered buffer is **normalized to 0.89 peak**. Raw summed partials peak
+    near 2.0 and hard-clip into a buzz — the node tests cannot catch this, so
+    measure peak/RMS in a real browser after touching the synthesis.
+  - `vibrate` and the notification are deliberately NOT gated by `bellEnabled` —
+    they are the redundancy layer.
 
 ---
 
@@ -237,6 +295,26 @@ CSS vars in `css/app.css` `:root`. Purple-led, gold accent.
   volume + set count correct.
 - History + progression chart + best-set highlight + PR badge: correct.
 
+### Notes + rest bell (added 2026-08-14)
+- Store layer: 21 node checks — tombstones, name normalization, dated-log run
+  collapsing, legacy `cue` fallback, both `notes` backfill paths, settings.
+- Bell: 22 node checks — WAV header/sizes/clamping, plus a regression test for
+  the double-schedule race (mutation-tested: 3 failures against the unfixed code).
+- Real-browser measurements: bell buffer 1ch / 22050 Hz / 48511 samples, peak
+  0.89, **zero** samples at the 16-bit rails, WAV length matches expected.
+- Driven in real Chrome: note editing round trip, `Last time` line appearing only
+  when the note differs, all six history-sheet note cases, template-cue seeding
+  incl. the cleared-note case, both settings toggles persisting across reload,
+  and the toggles actually gating `Bell.ring` / `Bell.scheduleAt`.
+- Full regression re-run after the bell landed: parser shape, prefill, supersets,
+  split implements, PR detection, export/import round trip — all unchanged.
+
+### NOT verified — needs the user's iPhone
+The locked-screen bell depends on whether iOS honors `play()` inside the
+visibility-change window. It cannot be tested headlessly. If it fails, the
+feature degrades to the pre-existing notification + vibrate, so it is not a
+regression. See the checklist in the plan doc, Task 16.
+
 ---
 
 ## 9. Backlog / possible next steps (all originally-requested items are DONE)
@@ -255,7 +333,15 @@ Nice-to-haves not requested but natural extensions:
 ## 10. When editing
 - Change anything in the SW shell list (`sw.js` SHELL) or any cached asset →
   **bump `CACHE` version** (`liftlog-vN`) or the old file is served from cache.
-  Currently at `liftlog-v4`.
+  Currently at `liftlog-v6`. This bit us during development: a browser profile
+  served a stale `index.html` predating the `bell.js` script tag, making
+  `window.Bell` undefined. When testing locally, use a fresh incognito window or
+  unregister the SW before concluding a change did not work.
+- Node tests now live in `tests/` (not the scratchpad, which does not survive a
+  session): `node tests/test-notes.js` (21 checks) and `node tests/test-bell.js`
+  (22 checks). Both stub `window`/`localStorage` and `require()` the module the
+  way the browser loads it.
+- The repo is now under **git**, on branch `feature/notes-and-bell`.
 - After editing JS, do a **real browser load** (headless dump-dom) to catch
   global-scope collisions — `node --check` won't.
 - Keep new modules IIFE-wrapped, exposing one `window.X`.
