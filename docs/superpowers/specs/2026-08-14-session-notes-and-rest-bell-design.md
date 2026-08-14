@@ -75,14 +75,20 @@ session persisted by the previous build and resumed after upgrade.
 ## Store API
 
 ```js
-getNote(name) -> String            // '' when unset
-setNote(name, text) -> void        // trims; empty text deletes the key
+getNote(name) -> String            // '' when unset OR deliberately cleared
+hasNote(name) -> Boolean           // does the user have an opinion on record?
+setNote(name, text) -> void        // trims; empty text stores a tombstone
 notesForExercise(name) -> [{ text, date, since, count }]   // newest first
 ```
 
-`setNote` writes `{ text, updatedAt: Date.now() }` and calls `save()`. Empty or
-whitespace-only text deletes the key rather than storing `''`, so `getNote`
-falls through to the template cue seed.
+`setNote` writes `{ text, updatedAt: Date.now() }` and calls `save()`. Clearing a
+note stores `text: ''` rather than deleting the key, so key *existence* means
+"the user has an opinion about this exercise" and `text: ''` means "the opinion
+is: no note". Every seeding path therefore tests `hasNote`, not truthiness —
+otherwise a note the user deliberately cleared would be resurrected from the
+stale template cue the next time that workout started. (This reverses an earlier
+decision in this document; the delete-on-empty version could not distinguish
+"never wrote one" from "deleted it".)
 
 `notesForExercise` walks `completedSessions()` (already newest-first), collects
 each entry matching the normalized name whose `noteOf` is non-empty, then

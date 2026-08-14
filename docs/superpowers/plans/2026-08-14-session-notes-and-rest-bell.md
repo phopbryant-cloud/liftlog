@@ -677,7 +677,11 @@ function notesSection(name) {
   rows.forEach((n, i) => {
     if (i === 0 && newestMatchesCurrent) return; // already shown as Current
     const r = el('div', 'note-log-row');
-    const label = fmtDate(n.date) + (n.count > 1 ? ' · unchanged since ' + fmtDate(n.since) : '');
+    // `count` counts collapsed entries, not sessions, so the same exercise
+    // logged twice in ONE session yields count 2 with since === date. Guard
+    // against rendering the nonsense "Jul 1 · unchanged since Jul 1".
+    const spansSessions = n.count > 1 && n.since !== n.date;
+    const label = fmtDate(n.date) + (spansSessions ? ' · unchanged since ' + fmtDate(n.since) : '');
     r.appendChild(el('div', 'note-log-date', label));
     r.appendChild(el('div', 'note-log-text', n.text));
     box.appendChild(r);
@@ -763,11 +767,12 @@ Insert directly above `function saveTemplate() {` (line 292):
 ```js
 // A template cue is only a seed: it fills in a standing note that does not
 // exist yet. Re-importing the same workout text must never clobber a note the
-// user has refined over weeks.
+// user has refined over weeks — nor resurrect one they deliberately cleared,
+// which is why this tests key existence via hasNote rather than truthiness.
 function seedNotesFromExercises(exercises) {
   exercises.forEach((ex) => {
     const cue = (ex.cue || '').trim();
-    if (cue && !window.Store.getNote(ex.name)) window.Store.setNote(ex.name, cue);
+    if (cue && !window.Store.hasNote(ex.name)) window.Store.setNote(ex.name, cue);
   });
 }
 ```
