@@ -94,7 +94,8 @@ function buildEntries(template) {
       }
     });
     return {
-      exId: ex.id, name: ex.name, cue: ex.cue || '',
+      exId: ex.id, name: ex.name,
+      note: window.Store.getNote(ex.name) || ex.cue || '',
       supersetId: ex.supersetId || null, restSec: ex.restSec || 120,
       sets,
     };
@@ -214,7 +215,8 @@ function exerciseBlock(idx) {
   const e = S.entries[idx];
   const card = el('div', 'ex-card');
   card.appendChild(exHeader(e, idx));
-  if (e.cue) card.appendChild(el('div', 'ex-cue', e.cue));
+  const noteText = window.Store.noteOfEntry(e);
+  if (noteText) card.appendChild(el('div', 'ex-cue', noteText));
   const rows = el('div', 'set-rows');
   e.sets.forEach((st, si) => rows.appendChild(setRow(idx, si)));
   card.appendChild(rows);
@@ -440,7 +442,7 @@ function addAdHoc() {
   const name = prompt('Exercise name?');
   if (!name || !name.trim()) return;
   S.entries.push({
-    exId: 'adhoc_' + Date.now().toString(36), name: name.trim(), cue: '',
+    exId: 'adhoc_' + Date.now().toString(36), name: name.trim(), note: '',
     supersetId: null, restSec: window.Store.getLastRest(),
     sets: [{ label: null, weight: '', reps: '', done: false, warmup: false, skipped: false, prefilled: false }],
   });
