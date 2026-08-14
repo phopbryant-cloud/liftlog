@@ -248,9 +248,16 @@ hammer curls @3 / side laterals [2 cable + 2 dumbbell]. ✓
   - **Backgrounded/locked mid-rest:** `visibilitychange`→hidden and `pagehide`
     both call `onHidden`, which encodes `[silence for the remaining rest + bell]`
     to a WAV and plays it through a media element. This claims the iOS
-    *playback* audio session — the only way to ring from a locked screen, and it
-    interrupts the user's music for that rest, which is why `bgBellEnabled` is a
-    toggle. On return, `Bell.cancel()` releases the session.
+    *playback* audio session — the only way to ring from a locked screen. On
+    return, `Bell.cancel()` releases the session.
+  - **`bgBellEnabled` DEFAULTS OFF.** On-device testing confirmed the mechanism
+    works — the bell does ring from a locked iPhone — but also that iOS does
+    **not** restart the user's music once the interruption ends. In practice
+    every trip out of the app mid-rest permanently killed their music, which the
+    owner judged worse than losing the locked-screen bell. Do not flip this
+    default back without re-testing on a real phone with music playing. The
+    default lives in TWO places that must agree: `bgBellEnabled()` in
+    `session.js` and the `toggleRow(...)` call in `settings.js`.
   - iOS gives web audio either *ambient* (mixes, dies when backgrounded) or
     *playback* (survives backgrounding and the ringer switch, interrupts others).
     There is no mix-and-continue mode and no local notification scheduling, so
@@ -309,11 +316,16 @@ CSS vars in `css/app.css` `:root`. Purple-led, gold accent.
 - Full regression re-run after the bell landed: parser shape, prefill, supersets,
   split implements, PR detection, export/import round trip — all unchanged.
 
-### NOT verified — needs the user's iPhone
-The locked-screen bell depends on whether iOS honors `play()` inside the
-visibility-change window. It cannot be tested headlessly. If it fails, the
-feature degrades to the pre-existing notification + vibrate, so it is not a
-regression. See the checklist in the plan doc, Task 16.
+### On-device results (owner's iPhone, installed PWA)
+- App installs, Settings opens, bell synthesizes and sounds correct. ✓
+- **Locked-screen bell WORKS** — iOS does honor `play()` inside the
+  visibility-change window, so the scheduled-WAV approach is sound. ✓
+- **But iOS never restarts the user's music** after that interruption. Every
+  trip out of the app mid-rest killed their music for the remainder of the
+  workout. Owner's call: not worth it → `bgBellEnabled` now defaults OFF.
+- Root cause of a "dead Settings button" during that session was the service
+  worker silently dropping an uncached asset (fixed, see §10) — NOT a bug in the
+  notes or bell code.
 
 ---
 

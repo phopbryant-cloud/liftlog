@@ -24,9 +24,9 @@ function render() {
 
   wrap.appendChild(toggleRow('Bell sound', null, 'bellEnabled', true));
   wrap.appendChild(toggleRow(
-    'Ring when the app is closed',
-    'Pauses your music during rest',
-    'bgBellEnabled', true));
+    'Ring when locked',
+    'Stops your music, and iOS will not restart it',
+    'bgBellEnabled', false));
 
   wrap.appendChild(el('div', 'h-section', 'Backup'));
 

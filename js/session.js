@@ -51,7 +51,12 @@ function stopTimerLoop() {
 function initAudio() { window.Bell.init(); }
 
 function bellEnabled() { return window.Store.getSetting('bellEnabled', true); }
-function bgBellEnabled() { return window.Store.getSetting('bgBellEnabled', true); }
+// Defaults OFF. Ringing from a locked screen requires claiming the iOS
+// 'playback' audio session, and iOS does not resume the user's music after that
+// interruption ends — so leaving the app mid-rest silently kills their music for
+// the rest of the workout. Verified on-device; opt in only if you lift without
+// music.
+function bgBellEnabled() { return window.Store.getSetting('bgBellEnabled', false); }
 function notify(body) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try { new Notification('Rest complete 💪', { body, icon: './icons/icon.svg', tag: 'liftlog-rest', renotify: true }); } catch (e) {}
