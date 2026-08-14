@@ -11,6 +11,7 @@ function freshDB() {
     templates: [],
     sessions: [],
     active: null,
+    notes: {},
     settings: { units: 'lbs', lastRestSec: 120 },
   };
 }
@@ -27,6 +28,7 @@ function load() {
     _db = freshDB();
   }
   if (!_db.version) _db = freshDB();
+  if (!_db.notes) _db.notes = {};
   return _db;
 }
 
@@ -123,6 +125,23 @@ function allTimeBestWeight(name) {
   return best;
 }
 
+// ---- Notes (keyed by normalized exercise name, like progression) ----
+function getNote(name) {
+  const n = load().notes[normName(name)];
+  return n && n.text ? n.text : '';
+}
+
+// Empty/whitespace text deletes the key so getNote falls back to the
+// template cue seed rather than storing a meaningless ''.
+function setNote(name, text) {
+  const db = load();
+  const key = normName(name);
+  const t = (text || '').trim();
+  if (!t) delete db.notes[key];
+  else db.notes[key] = { text: t, updatedAt: Date.now() };
+  save();
+}
+
 // ---- Active (in-progress) session persistence ----
 function setActive(sess) { load().active = sess; save(); }
 function getActive() { return load().active || null; }
@@ -136,6 +155,7 @@ function importJSON(text) {
   const parsed = JSON.parse(text);
   if (!parsed || !parsed.version) throw new Error('Not a valid backup file');
   _db = parsed;
+  if (!_db.notes) _db.notes = {};
   save();
 }
 
@@ -146,6 +166,7 @@ if (typeof window !== 'undefined') {
     setLastRest, getLastRest,
     addSession, getSessions, completedSessions,
     historyForExercise, lastSetsForExercise, allTimeBestWeight,
+    getNote, setNote,
     setActive, getActive, clearActive,
     exportJSON, importJSON,
     STORAGE_KEY,
