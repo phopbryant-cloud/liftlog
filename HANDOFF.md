@@ -355,6 +355,21 @@ Nice-to-haves not requested but natural extensions:
 - Per-set RPE / notes.
 - Trend chart: switch between top-set weight and est. 1RM or volume.
 
+### Boot guard (index.html, after the script tags)
+A `<script>` that fails to load throws **no JS error** — the module's global is
+simply absent, and the app comes up half-alive: nav items that do nothing, a
+workout that will not resume, a Settings tab that ignores taps. This happened
+repeatedly in real use, caused by a stale or partially-populated service-worker
+cache, and it is effectively undebuggable on a phone.
+
+The guard checks that all seven module globals exist. If any are missing it
+replaces the page with a recovery screen, clears **caches only** (never
+localStorage, so no workout data is at risk), unregisters the service worker and
+reloads. It auto-heals once per tab via a `sessionStorage` flag, then falls back
+to a manual button so a persistent failure cannot become a reload loop.
+
+If you add a module, add its global to `REQUIRED` in that guard.
+
 ## 10. When editing
 - Change anything in the SW shell list (`sw.js` SHELL) or any cached asset →
   **bump `CACHE` version** (`liftlog-vN`) or the old file is served from cache.

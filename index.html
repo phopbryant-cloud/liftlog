@@ -45,5 +45,57 @@
   <script src="./js/history.js"></script>
   <script src="./js/settings.js"></script>
   <script src="./js/app.js"></script>
+
+  <script>
+    // Boot guard. A <script> that fails to load throws no JS error, so a single
+    // missing file leaves the app half-alive: nav items that do nothing, a
+    // workout that will not resume. Seen in the wild from a stale/poisoned
+    // service-worker cache, and it is undebuggable on a phone. Detect it and
+    // self-heal. Caches are cleared; localStorage (all workout data) is not.
+    (function () {
+      var REQUIRED = ['WorkoutParser', 'Store', 'Bell', 'Session', 'History', 'Settings', 'App'];
+      var missing = REQUIRED.filter(function (n) { return !window[n]; });
+      if (!missing.length) return;
+
+      function heal() {
+        var done = function () { location.reload(); };
+        var jobs = [];
+        try {
+          if (window.caches && caches.keys) {
+            jobs.push(caches.keys().then(function (ks) {
+              return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+            }));
+          }
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+              return Promise.all(rs.map(function (r) { return r.unregister(); }));
+            }));
+          }
+          Promise.all(jobs).then(done, done);
+          setTimeout(done, 2500); // never hang on a wedged SW
+        } catch (e) { done(); }
+      }
+
+      document.body.innerHTML =
+        '<div style="padding:32px 20px;font-family:system-ui,-apple-system,sans-serif;color:#e8e4f0">' +
+        '<h2 style="font-family:Anton,sans-serif;text-transform:uppercase;font-size:22px;margin:0 0 12px">Reloading app</h2>' +
+        '<p style="font-size:14px;line-height:1.55;color:#a99fbd;margin:0">Some files did not load (' +
+        missing.join(', ') + '). Clearing the cache and retrying.<br><br>' +
+        '<strong style="color:#fdb927">Your workouts and history are safe</strong> — this only clears cached code.</p>' +
+        '<button id="liftlog-heal" style="margin-top:22px;width:100%;min-height:52px;border-radius:12px;' +
+        'border:1px solid #a855f7;background:#7c3aed;color:#fff;font-size:15px;font-weight:700">Reload now</button>' +
+        '</div>';
+      document.getElementById('liftlog-heal').onclick = heal;
+
+      // Auto-heal once per tab, then leave it to the button so a persistent
+      // failure cannot become a reload loop.
+      try {
+        if (!sessionStorage.getItem('liftlog-healed')) {
+          sessionStorage.setItem('liftlog-healed', '1');
+          heal();
+        }
+      } catch (e) {}
+    })();
+  </script>
 </body>
 </html>

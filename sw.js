@@ -1,5 +1,5 @@
 // sw.js — cache the app shell + Google Fonts so it works offline after first load.
-const CACHE = 'liftlog-v9';
+const CACHE = 'liftlog-v10';
 const SHELL = [
   './',
   './index.html',
