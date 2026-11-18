@@ -1,5 +1,5 @@
 // sw.js — cache the app shell + Google Fonts so it works offline after first load.
-const CACHE = 'liftlog-v11';
+const CACHE = 'liftlog-v12';
 const SHELL = [
   './',
   './index.html',
@@ -20,7 +20,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' bypasses the browser HTTP cache (GitHub Pages sends
+  // max-age=600). Without it, a deploy within 10 min of a visit filled the new
+  // cache with the OLD files, so the update never showed up.
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
