@@ -1,5 +1,5 @@
 // sw.js — cache the app shell + Google Fonts so it works offline after first load.
-const CACHE = 'liftlog-v10';
+const CACHE = 'liftlog-v11';
 const SHELL = [
   './',
   './index.html',
@@ -14,6 +14,9 @@ const SHELL = [
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
+  './icons/apple-touch-icon.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
